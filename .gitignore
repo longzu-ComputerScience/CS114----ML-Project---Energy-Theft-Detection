@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Local configuration
+.env
+.env.*
+!.env.example
+
+# Data files generated or downloaded locally
+data/raw/
+data/data/raw/
+data/interim/
+data/processed/
+data/external/
+data/*.csv
+data/**/*.csv
+data/*.tsv
+data/*.xlsx
+data/*.xls
+data/*.json
+data/*.jsonl
+data/*.parquet
+data/*.pkl
+data/*.pickle
+data/*.zip
+data/*.gz
+data/*.tar
+data/*.tar.gz
+
+# Model and experiment outputs
+models/
+checkpoints/
+runs/
+outputs/
+artifacts/
+mlruns/
+wandb/
+*.joblib
+*.onnx
+*.pt
+*.pth
+
+# Logs
+logs/
+*.log
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
