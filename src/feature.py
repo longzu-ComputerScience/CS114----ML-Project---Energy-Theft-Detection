@@ -652,7 +652,6 @@ def validate_features(features: pd.DataFrame) -> pd.DataFrame:
 
 
 def save_features(features: pd.DataFrame) -> None:
-
     print_step(13, "Lưu features")
 
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
