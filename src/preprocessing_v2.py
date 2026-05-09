@@ -24,7 +24,7 @@ import pandas as pd
 
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 
-RAW_DATA_PATH = PROJECT_ROOT / "data" / "data" / "raw" / "data set.csv"
+RAW_DATA_PATH = PROJECT_ROOT / "data" / "raw" / "data set.csv"
 PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
 
 CLEANED_OUTPUT_PATH = PROCESSED_DIR / "cleaned.csv"
