@@ -65,3 +65,6 @@ logs/
 Thumbs.db
 .idea/
 .vscode/
+
+# CatBoost training logs
+catboost_info/
