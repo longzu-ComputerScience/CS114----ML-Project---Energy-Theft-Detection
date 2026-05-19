@@ -30,6 +30,7 @@ build/
 .env
 .env.*
 !.env.example
+/CLAUDE.md
 
 # Data files generated or downloaded locally
 data/raw/
