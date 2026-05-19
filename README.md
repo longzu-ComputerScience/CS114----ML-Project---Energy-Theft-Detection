@@ -1,42 +1,61 @@
-# Phát hiện trộm cắp điện bằng học máy
+# Phát Hiện Trộm Điện Bằng Học Máy
 
-Dự án phát hiện khách hàng có khả năng trộm cắp điện dựa trên lịch sử tiêu thụ điện hằng ngày. Bài toán được mô hình hóa thành bài toán phân loại nhị phân có giám sát:
+Dự án phát hiện khách hàng có khả năng trộm điện dựa trên lịch sử tiêu thụ điện hằng ngày. Bài toán được mô hình hóa thành phân loại nhị phân có giám sát:
 
 - `0`: khách hàng bình thường
 - `1`: khách hàng có khả năng trộm điện
 
 Bộ dữ liệu sử dụng: [SGCC Electricity Theft Detection Dataset](https://www.kaggle.com/datasets/bensalem14/sgcc-dataset).
 
-## Mục tiêu dự án
+## Mục Tiêu
 
-- Làm sạch dữ liệu tiêu thụ điện theo ngày.
-- Trích xuất các đặc trưng thống kê và hành vi từ chuỗi tiêu thụ điện.
-- Huấn luyện hồi quy logistic làm mô hình chính.
-- So sánh với hồi quy logistic có điều chuẩn L2, phân tích phân biệt Gaussian và hồi quy tuyến tính làm mô hình so sánh phụ.
-- Đánh giá bằng các chỉ số phù hợp với dữ liệu mất cân bằng, ưu tiên Recall, F1-score và PR-AUC.
+- Làm sạch dữ liệu tiêu thụ điện theo ngày và hạn chế target leakage.
+- Tạo đặc trưng cấp khách hàng từ chuỗi tiêu thụ điện.
+- So sánh 3 mô hình: Logistic Regression + L2 + balanced, Random Forest, LightGBM.
+- Chọn threshold trên validation set, đánh giá cuối trên test set.
+- Lưu LightGBM inference bundle để phục vụ web demo.
 
-## Cấu trúc dự án
+## Kết Quả Chính
+
+Mô hình tốt nhất hiện tại là **LightGBM benchmark**.
+
+| Model | Threshold | Precision | Recall | F2 | PR-AUC | ROC-AUC |
+|---|---:|---:|---:|---:|---:|---:|
+| LightGBM benchmark | 0.4368 | 0.2885 | 0.6458 | 0.5176 | 0.4489 | 0.8387 |
+| Random Forest benchmark | 0.2987 | 0.2477 | 0.6421 | 0.4870 | 0.3701 | 0.8082 |
+| LR + L2 + balanced | 0.5440 | 0.2184 | 0.5701 | 0.4312 | 0.3117 | 0.7771 |
+
+Accuracy không phải chỉ số chính vì dữ liệu mất cân bằng mạnh. Báo cáo ưu tiên Recall, F2, PR-AUC, ROC-AUC và confusion matrix.
+
+## Cấu Trúc Dự Án
 
 ```text
 .
 ├── data/
-│   ├── README.md
-│   └── preview.ipynb
-├── notebooks/
-│   └── eda.ipynb
+│   ├── raw/                 # raw CSV tải từ Kaggle, không commit
+│   ├── processed/           # cleaned.csv, quality_features.csv, features.csv
+│   ├── test/                # test_raw_15_percent.csv cho web demo
+│   └── README.md
+├── figures/                 # hình EDA/model dùng cho báo cáo
+├── models/                  # model bundle và các bảng metric sinh từ train.py
+├── notebooks/               # notebook phân tích và huấn luyện
+├── Project Description/     # nội dung slide và báo cáo LaTeX
 ├── src/
-│   ├── preprocessing.py
-│   ├── features.py
+│   ├── preprocessing_v2.py
+│   ├── feature.py
 │   ├── train.py
 │   └── evaluate.py
-├── .gitignore
+├── web/
+│   ├── backend/
+│   └── frontend/
+├── package.json
 ├── README.md
 └── requirements.txt
 ```
 
-Các file dữ liệu cục bộ không được đưa lên Git. Đặt các file CSV đã tải vào thư mục `data/raw/`.
+Web demo là phần phụ nên project structure chỉ liệt kê `web/backend` và `web/frontend`. Chi tiết chạy web nằm trong `web/README.md`.
 
-## Cài đặt môi trường
+## Cài Đặt Môi Trường
 
 Tạo và kích hoạt môi trường ảo:
 
@@ -45,15 +64,29 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
-Cài đặt thư viện cần thiết:
+Cài thư viện cho pipeline machine learning:
 
 ```powershell
 python -m pip install -r requirements.txt
 ```
 
-## Bộ dữ liệu
+Nếu cần chạy web demo:
 
-Tải bộ dữ liệu trực tiếp vào thư mục dữ liệu của dự án:
+```powershell
+npm run install:web
+```
+
+## Dữ Liệu
+
+Đặt file raw đầy đủ vào:
+
+```text
+data/raw/data set.csv
+```
+
+File raw đầy đủ có 42,372 khách hàng, 1,034 cột ngày tiêu thụ, `CONS_NO` và `FLAG`.
+
+Ví dụ tải dữ liệu bằng `kagglehub`:
 
 ```python
 import kagglehub
@@ -64,35 +97,68 @@ kagglehub.dataset_download(
 )
 ```
 
-Các file dữ liệu thô dự kiến:
+Không commit file trong `data/raw/` vì kích thước lớn.
 
-```text
-data/raw/data set.csv
-data/raw/datasetsmall.csv
+## Quy Trình Chạy Pipeline
+
+Chạy preprocessing:
+
+```powershell
+python src/preprocessing_v2.py
 ```
 
-Nếu file đầy đủ được đổi tên cục bộ để tránh dấu cách, dùng:
+Chạy feature engineering:
 
-```text
-data/raw/data_set.csv
+```powershell
+python src/feature.py
 ```
 
-## Quy trình thực hiện
+Train và lưu artifact:
 
-1. Khám phá bộ dữ liệu và phân phối nhãn trong `notebooks/eda.ipynb`.
-2. Làm sạch dữ liệu thô trong `src/preprocessing.py`.
-3. Xây dựng đặc trưng thống kê và hành vi trong `src/features.py`.
-4. Huấn luyện mô hình chính và các mô hình so sánh trong `src/train.py`.
-5. Đánh giá mô hình trong `src/evaluate.py`.
+```powershell
+python src/train.py
+```
 
-## Chỉ số đánh giá
+Sau khi chạy `train.py`, các artifact chính gồm:
 
-Vì bộ dữ liệu bị mất cân bằng, Accuracy chỉ nên được dùng để tham khảo. Các chỉ số chính gồm:
+```text
+models/energy_theft_model_bundle.pkl
+models/model_metadata.json
+models/training_summary.csv
+models/test_comparison.csv
+models/threshold_report.csv
+data/test/test_raw_15_percent.csv
+```
 
-- Recall
-- F1-score
-- PR-AUC
-- ROC-AUC
-- Confusion Matrix
+`energy_theft_model_bundle.pkl` chỉ lưu LightGBM inference bundle để web demo sử dụng. Các file CSV/JSON trong `models/` dùng để xem metric, báo cáo và kiểm tra lại kết quả.
 
-Âm tính giả là loại lỗi cần chú ý nhất trong bài toán này, vì đó là trường hợp khách hàng thật sự trộm điện nhưng mô hình dự đoán là bình thường.
+## Web Demo
+
+Web demo dùng Next.js frontend và FastAPI backend. Backend load sẵn LightGBM bundle, nhận CSV raw theo format dataset gốc, chạy preprocessing + feature engineering, rồi trả kết quả dự đoán.
+
+Chạy từ root repo:
+
+```powershell
+npm run dev:all
+```
+
+Địa chỉ mặc định:
+
+- Frontend: `http://127.0.0.1:3000`
+- Backend API: `http://127.0.0.1:8000`
+- API docs: `http://127.0.0.1:8000/docs`
+
+File CSV mẫu cho demo:
+
+```text
+data/test/test_raw_15_percent.csv
+```
+
+File này là đúng 15% test split được tạo bằng cùng logic trong `train.py`, không lấy từ train/validation.
+
+## Ghi Chú Đánh Giá
+
+- Split hiện tại: train/validation/test = 70/15/15, stratified, `random_state=42`.
+- Threshold cuối của từng model được chọn trên validation set theo Best F2.
+- Test set chỉ dùng cho đánh giá cuối và file demo raw.
+- `FLAG` trong CSV demo chỉ dùng để hiển thị ground truth, không dùng làm input predict.

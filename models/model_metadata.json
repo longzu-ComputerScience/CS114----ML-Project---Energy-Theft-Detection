@@ -1,0 +1,130 @@
+{
+  "best_model_key": "lightgbm",
+  "best_model_name": "LightGBM benchmark",
+  "best_threshold": 0.43678360417624784,
+  "inference_bundle": {
+    "path": "models\\energy_theft_model_bundle.pkl",
+    "model_key": "lightgbm",
+    "model_name": "LightGBM benchmark",
+    "threshold": 0.43678360417624784,
+    "contains_only_inference_model": true
+  },
+  "scale_pos_weight": 10.723320158102768,
+  "random_state": 42,
+  "split": {
+    "full_rows": 42372,
+    "train_rows": 29660,
+    "validation_rows": 6356,
+    "test_rows": 6356,
+    "full_theft_ratio": 0.08531577456811101,
+    "train_theft_ratio": 0.08530006743088335,
+    "validation_theft_ratio": 0.08543108873505349,
+    "test_theft_ratio": 0.08527375707992448,
+    "raw_feature_count": 161,
+    "active_feature_count": 159,
+    "test_raw_export": {
+      "path": "data\\test\\test_raw_15_percent.csv",
+      "rows": 6356,
+      "columns": 1036,
+      "theft_ratio": 0.08527375707992448
+    }
+  },
+  "active_feature_count": 159,
+  "constant_features_dropped": [
+    "negative_count_raw",
+    "negative_ratio_raw"
+  ],
+  "metrics": {
+    "training_summary": [
+      {
+        "model_key": "logistic_l2_balanced",
+        "Model": "Logistic Regression + L2 + balanced",
+        "Group": "Linear baseline",
+        "Fit seconds": 4.264833499997621,
+        "Val ROC-AUC": 0.8026134665458986,
+        "Val PR-AUC": 0.34921432913651135,
+        "Val F1 @0.50": 0.31866723622383597,
+        "Val Recall @0.50": 0.6869244935543278,
+        "Best F1": 0.3985828166519043,
+        "Best F1 threshold": 0.7020000000000001,
+        "Best F2": 0.47645429362880887,
+        "Best F2 threshold": 0.544
+      },
+      {
+        "model_key": "random_forest",
+        "Model": "Random Forest benchmark",
+        "Group": "Bagging",
+        "Fit seconds": 6.218786600002204,
+        "Val ROC-AUC": 0.8218780918744706,
+        "Val PR-AUC": 0.4187475022831927,
+        "Val F1 @0.50": 0.4166666666666667,
+        "Val Recall @0.50": 0.3683241252302026,
+        "Best F1": 0.4392614188532556,
+        "Best F1 threshold": 0.47200000000000003,
+        "Best F2": 0.5110419026047565,
+        "Best F2 threshold": 0.29868616357278077
+      },
+      {
+        "model_key": "lightgbm",
+        "Model": "LightGBM benchmark",
+        "Group": "Boosting",
+        "Fit seconds": 1.680612000011024,
+        "Val ROC-AUC": 0.841378265961953,
+        "Val PR-AUC": 0.4901868452797195,
+        "Val F1 @0.50": 0.4406548431105048,
+        "Val Recall @0.50": 0.5948434622467772,
+        "Best F1": 0.48549946294307195,
+        "Best F1 threshold": 0.706,
+        "Best F2": 0.5352834740651388,
+        "Best F2 threshold": 0.43678360417624784
+      }
+    ],
+    "test_comparison": [
+      {
+        "model_key": "lightgbm",
+        "Model": "LightGBM benchmark",
+        "Group": "Boosting",
+        "Threshold": 0.43678360417624784,
+        "Precision": 0.2885408079142622,
+        "Recall": 0.6457564575645757,
+        "F1": 0.39886039886039887,
+        "F2": 0.5175983436853002,
+        "PR-AUC": 0.4489311834181766,
+        "ROC-AUC": 0.8386922646316246,
+        "FP": 863,
+        "FN": 192,
+        "TP": 350
+      },
+      {
+        "model_key": "random_forest",
+        "Model": "Random Forest benchmark",
+        "Group": "Bagging",
+        "Threshold": 0.29868616357278077,
+        "Precision": 0.24768683274021353,
+        "Recall": 0.6420664206642066,
+        "F1": 0.3574730354391371,
+        "F2": 0.4869857262804366,
+        "PR-AUC": 0.37011361324256126,
+        "ROC-AUC": 0.8082462867972333,
+        "FP": 1057,
+        "FN": 194,
+        "TP": 348
+      },
+      {
+        "model_key": "logistic_l2_balanced",
+        "Model": "Logistic Regression + L2 + balanced",
+        "Group": "Linear baseline",
+        "Threshold": 0.544,
+        "Precision": 0.2183745583038869,
+        "Recall": 0.5701107011070111,
+        "F1": 0.3157894736842105,
+        "F2": 0.4312029025955903,
+        "PR-AUC": 0.3116720345751207,
+        "ROC-AUC": 0.7770637613496878,
+        "FP": 1106,
+        "FN": 233,
+        "TP": 309
+      }
+    ]
+  }
+}

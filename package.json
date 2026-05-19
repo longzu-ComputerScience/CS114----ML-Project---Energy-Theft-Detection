@@ -1,0 +1,12 @@
+{
+  "name": "energy-theft-detection",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:all": "npm --prefix web run dev:all",
+    "dev:frontend": "npm --prefix web run dev:frontend",
+    "dev:backend": "npm --prefix web run dev:backend",
+    "install:backend": "python -m pip install -r web/backend/requirements.txt",
+    "install:web": "python -m pip install -r web/backend/requirements.txt && npm --prefix web install && npm --prefix web/frontend install"
+  }
+}

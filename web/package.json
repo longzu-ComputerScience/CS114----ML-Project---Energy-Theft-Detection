@@ -1,0 +1,13 @@
+{
+  "name": "energy-theft-detection-web",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:frontend": "npm --prefix frontend run dev -- --hostname 127.0.0.1 --port 3000",
+    "dev:backend": "python -X utf8 -m uvicorn main:app --reload --host 127.0.0.1 --port 8000 --app-dir backend",
+    "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\""
+  },
+  "devDependencies": {
+    "concurrently": "latest"
+  }
+}

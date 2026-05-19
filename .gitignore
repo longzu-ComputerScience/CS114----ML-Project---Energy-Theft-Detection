@@ -17,6 +17,15 @@ ENV/
 # Jupyter
 .ipynb_checkpoints/
 
+# JavaScript / Next.js
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+out/
+dist/
+build/
+
 # Local configuration
 .env
 .env.*
@@ -42,9 +51,16 @@ data/*.zip
 data/*.gz
 data/*.tar
 data/*.tar.gz
+!data/test/
+!data/test/test_raw_15_percent.csv
 
 # Model and experiment outputs
-models/
+models/*
+!models/energy_theft_model_bundle.pkl
+!models/model_metadata.json
+!models/training_summary.csv
+!models/test_comparison.csv
+!models/threshold_report.csv
 checkpoints/
 runs/
 outputs/

@@ -37,3 +37,25 @@ kagglehub.dataset_download(
 ```
 
 Không commit các file trong `data/raw/` hoặc các thư mục tải lồng nhau như `data/data/raw/`.
+
+## Dữ liệu xử lý
+
+Pipeline hiện tại tạo các file sau trong `data/processed/`:
+
+```text
+data/processed/cleaned.csv
+data/processed/quality_features.csv
+data/processed/features.csv
+```
+
+Trong đó `features.csv` là bảng feature cấp khách hàng dùng để train model.
+
+## Dữ liệu test cho web demo
+
+`src/train.py` tạo thêm:
+
+```text
+data/test/test_raw_15_percent.csv
+```
+
+Đây là đúng 15% test split được tách bằng cùng logic train/validation/test trong pipeline hiện tại: stratified 70/15/15 với `random_state=42`. File này giữ format raw 1,034 cột ngày, `CONS_NO`, `FLAG` để web demo có thể upload/import và predict mà không dùng nhầm dữ liệu train hoặc validation.

@@ -1,503 +1,369 @@
-# Nội dung slide báo cáo
+# Nội dung slide báo cáo - Energy Theft Detection
 
-Phạm vi hiện tại: **EDA → Preprocessing → Feature Engineering**.  
-Ghi chú chung: repo hiện tại dùng **`src/preprocessing_v2.py`** làm pipeline preprocessing chính.
-
----
-
-## Slide 1. EDA - Dataset Overview
-
-**Nội dung chính**
-
-- Bài toán: phát hiện khách hàng có khả năng trộm điện từ chuỗi tiêu thụ điện hằng ngày.
-- Dữ liệu: SGCC Electricity Theft Detection Dataset.
-- Mỗi dòng tương ứng một khách hàng, nhãn nằm ở cột `FLAG`.
-- Quy ước nhãn:
-  - `0`: Normal customer
-  - `1`: Theft customer
-- Raw data hiện có: `42,372` khách hàng, `1,036` cột.
-- Số cột ngày tiêu thụ: `1,034`, từ `1/1/2014` đến `10/31/2016`.
-
-**Nên trích xuất từ repo**
-
-- Output từ `notebooks/eda.ipynb`, phần **Data Overview**.
-- Có thể dùng bảng overview trong notebook, không cần thêm plot mới.
+Thời lượng mục tiêu: **20 phút**.  
+Định hướng: giải thích quy trình, trực quan hóa kết quả, hạn chế đưa code lên slide.  
+Notebook chính: `notebooks/model_training-codex.ipynb`.  
+Script train tương ứng: `src/train.py`.
 
 ---
 
-## Slide 2. EDA - Target Distribution
+## Slide 1. Giới thiệu bài toán và mục tiêu dự án - 1.0 phút
 
-**Nội dung chính**
+**Thông điệp chính**
 
-- Dataset bị mất cân bằng rõ rệt.
+- Bài toán: phát hiện khách hàng có khả năng trộm điện dựa trên lịch sử tiêu thụ điện hằng ngày.
+- Đây là bài toán classification nhị phân:
+  - `FLAG = 0`: khách hàng bình thường.
+  - `FLAG = 1`: khách hàng trộm điện.
+- Mục tiêu thực tế không chỉ là accuracy, mà là phát hiện được nhiều trường hợp theft trong khi vẫn kiểm soát số false positive.
+- Pipeline repo: raw data -> preprocessing -> feature engineering -> model training -> evaluation -> demo.
+
+**Hình/visual nên dùng**
+
+- Một flow đơn giản: Raw data -> Cleaned data -> Features -> 3 models -> Best model.
+- Không cần code.
+
+**Ghi chú thuyết trình**
+
+Nhấn mạnh đây là bài toán mất cân bằng lớp. Nếu chỉ tối ưu accuracy, model có thể đoán hầu hết là normal nhưng vẫn đạt accuracy cao, trong khi không giải quyết đúng mục tiêu phát hiện trộm điện.
+
+---
+
+## Slide 2. Dataset và mất cân bằng lớp - 1.5 phút
+
+**Thông điệp chính**
+
+- Dataset: SGCC Electricity Theft Detection Dataset.
+- Số khách hàng: `42,372`.
+- Mỗi khách hàng có chuỗi tiêu thụ điện theo ngày từ `01/01/2014` đến `31/10/2016`.
+- Số cột ngày tiêu thụ: `1,034`.
 - Phân phối nhãn:
-  - Normal: `38,757` khách hàng, `91.47%`
-  - Theft: `3,615` khách hàng, `8.53%`
+  - Normal: `38,757` khách hàng, `91.47%`.
+  - Theft: `3,615` khách hàng, `8.53%`.
 - Tỷ lệ lệch lớp xấp xỉ `10.72 : 1`.
-- Kết luận: Accuracy không đủ để đánh giá model; các bước sau cần ưu tiên Recall, F1/F2, PR-AUC và Confusion Matrix.
 
-**Nên trích xuất từ repo**
+**Hình/visual nên dùng**
 
-- Plot có sẵn: `figures/01_target_distribution.png`.
-- Output số liệu có sẵn trong `notebooks/eda.ipynb`, phần **Target Distribution Analysis**.
+- `figures/01_target_distribution.png` hoặc `figures/target_distribution.png`.
 
----
+**Ghi chú thuyết trình**
 
-## Slide 3. EDA - Consumption Distribution
-
-**Nội dung chính**
-
-- Phân phối tiêu thụ điện bị lệch phải mạnh.
-- Thống kê trên các ô tiêu thụ quan sát được:
-  - Mean: `9.259`
-  - Median: `4.590`
-  - Std: `273.224`
-  - Max: `800,003.32`
-- Mean bị ảnh hưởng mạnh bởi outlier; vì vậy cần dùng thêm median, IQR, log-transform và các đặc trưng outlier-aware.
-
-**Nên trích xuất từ repo**
-
-- Plot có sẵn:
-  - `figures/02_consumption_statistics.png`
-  - `figures/02b_consumption_distribution_zoom.png`
-- Output số liệu có sẵn trong `notebooks/eda.ipynb`, phần **Consumption Statistics**.
+Giải thích vì sao dùng thêm Precision, Recall, F1, F2, PR-AUC, ROC-AUC và confusion matrix. Với bài này, Recall và F2 quan trọng vì bỏ sót theft là lỗi nghiêm trọng hơn.
 
 ---
 
-## Slide 4. EDA - Missing Values
+## Slide 3. EDA: dữ liệu tiêu thụ có nhiễu, missing và outlier - 1.5 phút
 
-**Nội dung chính**
+**Thông điệp chính**
 
-- Missing value xuất hiện nhiều trong dữ liệu thô.
-- Tổng missing cells: `11,233,528`, chiếm `25.64%` toàn bộ ô tiêu thụ.
-- Missing rate trung bình theo nhóm:
-  - Normal: `25.10%`
-  - Theft: `31.47%`
-- Missingness khác nhau giữa hai nhóm nhãn, nên không chỉ xem là dữ liệu bẩn; nó có thể là tín hiệu hành vi.
+- Phân phối tiêu thụ bị lệch phải mạnh.
+- Mean consumption chịu ảnh hưởng lớn bởi outlier:
+  - Mean: `9.259`.
+  - Median: `4.590`.
+  - Max: `800,003.32`.
+- Missing values chiếm `25.64%` toàn bộ ô tiêu thụ.
+- Missing rate trung bình:
+  - Normal: `25.10%`.
+  - Theft: `31.47%`.
+- Outlier lớn hơn `500 kWh/day`: `21,070` ô.
 
-**Nên trích xuất từ repo**
+**Hình/visual nên dùng**
 
-- Plot có sẵn: `figures/03_missing_values.png`.
-- Output số liệu có sẵn trong `notebooks/eda.ipynb`, phần **Missing Values Analysis**.
+- `figures/02_consumption_statistics.png`.
+- `figures/03_missing_values.png`.
+- `figures/06_outlier_detection.png`.
 
----
+**Ghi chú thuyết trình**
 
-## Slide 5. EDA - Zero Consumption and Inactive Patterns
-
-**Nội dung chính**
-
-- Số ô tiêu thụ bằng `0`: `5,788,603`.
-- Tính trên toàn bộ ô theo dõi, zero chiếm khoảng `13.21%`; tính trên các ô quan sát được, zero chiếm khoảng `17.77%`.
-- Zero consumption khác nhau giữa Normal và Theft:
-  - Normal có zero ratio trung bình cao hơn Theft.
-  - Đây là lý do preprocessing v2 giữ lại các feature như `zero_count_raw`, `zero_ratio_total_raw`, `zero_ratio_observed_raw`, `max_zero_streak_raw`.
-
-**Nên trích xuất từ repo**
-
-- Dùng plot so sánh nhóm: `figures/05_comparative_analysis.png`.
-- Có thể trích output từ `notebooks/feature.ipynb`, phần **Inactive phân bố theo FLAG**.
-- Chưa có plot riêng chỉ cho zero/inactive trong `figures/`; nếu muốn slide trực quan hơn có thể tạo thêm bar chart từ `quality_features.csv`.
+Không trình bày EDA như liệt kê số liệu. Hãy chốt insight: raw data không sạch, nhưng missing/zero/outlier có thể là tín hiệu hành vi, nên không được xử lý quá mạnh tay làm mất thông tin.
 
 ---
 
-## Slide 6. EDA - Normal vs Theft Comparison
+## Slide 4. Preprocessing: làm sạch nhưng tránh leakage - 1.5 phút
 
-**Nội dung chính**
+**Thông điệp chính**
 
-- Các thống kê cấp khách hàng khác biệt rõ giữa Normal và Theft.
-- Mean consumption trung bình:
-  - Normal: `7.95`
-  - Theft: `31.35`
-- Median consumption trung bình:
-  - Normal: `6.83`
-  - Theft: `28.44`
-- Theft group có mức tiêu thụ và độ biến động cao hơn; đây là cơ sở cho feature engineering theo thống kê, volatility và temporal behavior.
-
-**Nên trích xuất từ repo**
-
-- Plot có sẵn: `figures/05_comparative_analysis.png`.
-- Output số liệu có sẵn trong `notebooks/eda.ipynb`, phần **Comparative Analysis: Normal vs Theft**.
-
----
-
-## Slide 7. EDA - Time Series and Outliers
-
-**Nội dung chính**
-
-- Tiêu thụ điện thay đổi theo thời gian và theo tháng.
-- Khoảng cách giữa Normal và Theft không cố định qua toàn bộ giai đoạn.
-- Raw outliers lớn hơn `500 kWh/day`: `21,070` ô.
-- Outlier behavior khác nhau theo nhãn:
-  - Tỷ lệ khách hàng có outlier ở Normal khoảng `1.25%`
-  - Tỷ lệ khách hàng có outlier ở Theft khoảng `2.93%`
-- Kết luận: cần tạo feature theo tháng, rolling window, segment, volatility và outlier count.
-
-**Nên trích xuất từ repo**
-
-- Plot có sẵn:
-  - `figures/04_time_series.png`
-  - `figures/06_outlier_detection.png`
-- Output số liệu có sẵn trong `notebooks/eda.ipynb`, phần **Time Series Analysis** và **Outlier Detection**.
-
----
-
-## Slide 8. Preprocessing - Mục tiêu và phiên bản sử dụng
-
-**Nội dung chính**
-
-- Pipeline preprocessing chính của repo hiện tại là `src/preprocessing_v2.py`.
-- Mục tiêu:
-  - Làm sạch chuỗi tiêu thụ điện.
-  - Tránh target leakage.
-  - Giữ lại các tín hiệu chất lượng dữ liệu thô trước khi fill/clip.
-- Output của preprocessing v2:
-  - `data/processed/cleaned.csv`
-  - `data/processed/quality_features.csv`
-
-**Nên trích xuất từ repo**
-
-- Code: `src/preprocessing_v2.py`, phần `run_preprocessing()`.
-- Có thể chụp hoặc copy ngắn hàm pipeline:
-  - `load_data`
-  - `prepare_columns`
-  - `remove_duplicate_customers`
-  - `create_quality_features`
-  - `clean_negative_values`
-  - `clip_outliers`
-  - `fill_missing_values`
-  - `validate_cleaned_data`
-  - `save_outputs`
-
----
-
-## Slide 9. Preprocessing - Những thay đổi quan trọng ở v2
-
-**Nội dung chính**
-
-- Không xóa duplicate consumption series tự động.
-  - Lý do: nhiều khách hàng khác nhau có thể có chuỗi tiêu thụ giống nhau, đặc biệt nhóm inactive hoặc nhiều ngày bằng 0.
-- Tạo `quality_features.csv` trước khi làm sạch.
-  - Missing, zero, outlier có thể là tín hiệu hành vi.
-- Không dùng `FLAG` để fill missing.
-  - Tránh label leakage khi chia train/test.
-- Bổ sung `zero_ratio_observed_raw`.
-  - Phân biệt zero trên toàn bộ giai đoạn và zero trên các ngày có dữ liệu quan sát được.
-
-**Nên trích xuất từ repo**
-
-- Code/comment đầu file: `src/preprocessing_v2.py`.
-- Không cần plot.
-
----
-
-## Slide 10. Preprocessing - Data Quality Features
-
-**Nội dung chính**
-
-- `quality_features.csv` lưu các tín hiệu thô trước khi clean:
-  - `missing_count_raw`, `missing_ratio_raw`
-  - `zero_count_raw`, `zero_ratio_total_raw`, `zero_ratio_observed_raw`
-  - `negative_count_raw`, `negative_ratio_raw`
-  - `outlier_count_raw`, `outlier_ratio_raw`
-  - `max_consumption_raw`
-  - `max_missing_streak_raw`, `max_zero_streak_raw`
-  - `is_inactive_raw`
-- File hiện tại có shape: `42,372 x 15`.
-- Số khách hàng inactive theo ngưỡng `zero_ratio_total_raw >= 0.80`: `2,360`, chiếm `5.57%`.
-
-**Nên trích xuất từ repo**
-
-- File output: `data/processed/quality_features.csv`.
-- Code: `create_quality_features()` trong `src/preprocessing_v2.py`.
-- Có thể trích bảng nhỏ từ `notebooks/feature.ipynb`, phần **Inactive phân bố theo FLAG**.
-
----
-
-## Slide 11. Preprocessing - Cleaning Strategy
-
-**Nội dung chính**
-
-- Chuẩn hóa cột:
-  - Kiểm tra `CONS_NO`, `FLAG`.
-  - Ép kiểu numeric cho các cột ngày.
-  - Sắp xếp cột ngày theo thời gian.
-- Duplicate:
-  - `CONS_NO` trùng: `0`.
-  - Duplicate consumption series: `878`, chỉ báo cáo, không tự động xóa.
-- Giá trị âm:
-  - Dữ liệu hiện tại có `0` ô âm.
-  - Nếu có, chuyển thành `NaN`.
-- Outlier:
-  - Clip các giá trị `> 500 kWh/day` về `500`.
-- Missing:
-  - `ffill(limit=30)` và `bfill(limit=30)` theo từng khách hàng.
-  - Sau đó fill bằng median từng khách hàng.
-  - Fallback cuối bằng global median, không dùng `FLAG`.
-
-**Nên trích xuất từ repo**
-
-- Code:
-  - `prepare_columns()`
-  - `remove_duplicate_customers()`
-  - `clean_negative_values()`
-  - `clip_outliers()`
-  - `fill_missing_values()`
-- Chưa có flowchart preprocessing trong repo; nếu cần trực quan, nên tạo thêm sơ đồ pipeline đơn giản.
-
----
-
-## Slide 12. Preprocessing - Output sau xử lý
-
-**Nội dung chính**
-
-- `cleaned.csv`:
-  - Shape: `42,372 x 1,036`
-  - Gồm `CONS_NO`, `FLAG` và `1,034` cột ngày tiêu thụ đã xử lý.
-- `quality_features.csv`:
-  - Shape: `42,372 x 15`
-  - Lưu tín hiệu chất lượng dữ liệu thô.
+- Pipeline chính: `src/preprocessing_v2.py`.
+- Output:
+  - `data/processed/cleaned.csv`.
+  - `data/processed/quality_features.csv`.
+- Nguyên tắc:
+  - Không dùng `FLAG` để fill missing.
+  - Tạo quality features trước khi clean.
+  - Clip outlier lớn hơn `500 kWh/day`.
+  - Fill missing theo từng khách hàng bằng `ffill`, `bfill`, median cá nhân, fallback global median.
 - Sau preprocessing:
   - Không còn missing trong consumption cleaned.
   - Không còn giá trị âm.
-  - Không còn giá trị vượt ngưỡng `500` trong consumption cleaned.
+  - Không còn giá trị vượt ngưỡng clip.
 
-**Nên trích xuất từ repo**
+**Hình/visual nên dùng**
 
-- File output:
-  - `data/processed/cleaned.csv`
-  - `data/processed/quality_features.csv`
-- Code: `validate_cleaned_data()` và `save_outputs()` trong `src/preprocessing_v2.py`.
-- Chưa có plot riêng cho output preprocessing; có thể dùng bảng summary ngắn là đủ.
+- Flow preprocessing ngắn: Quality features -> Negative cleanup -> Outlier clipping -> Missing fill -> Validation.
+
+**Ghi chú thuyết trình**
+
+Điểm quan trọng là chống leakage: những bước xử lý không được nhìn nhãn `FLAG`. Nếu dùng nhãn để fill hoặc chọn ngưỡng, kết quả test sẽ không còn đáng tin.
 
 ---
 
-## Slide 13. Feature Engineering - Mục tiêu và input/output
+## Slide 5. Feature engineering: biến chuỗi ngày thành feature cấp khách hàng - 2.0 phút
 
-**Nội dung chính**
+**Thông điệp chính**
 
-- Feature engineering chuyển chuỗi tiêu thụ điện theo ngày thành bảng feature cấp khách hàng.
 - Input:
-  - `data/processed/cleaned.csv`
-  - `data/processed/quality_features.csv`
+  - `cleaned.csv`.
+  - `quality_features.csv`.
 - Output:
-  - `data/processed/features.csv`
-- Shape output hiện tại: `42,372 x 163`.
-  - `CONS_NO`
-  - `FLAG`
-  - `161` feature columns
-- Model sẽ học từ feature table, không học trực tiếp từ `1,034` cột ngày thô.
+  - `features.csv`.
+  - Shape: `42,372 x 163`.
+  - Gồm `CONS_NO`, `FLAG`, và `161` feature.
+- Khi train, bỏ 2 feature hằng:
+  - `negative_count_raw`.
+  - `negative_ratio_raw`.
+- Số feature thực sự dùng để train: `159`.
 
-**Nên trích xuất từ repo**
+**Nhóm feature chính**
 
-- Code: `src/feature.py`, hàm `run_feature_engineering()`.
-- Output từ `notebooks/check_features.ipynb`, phần **Load features.csv**.
+- Statistical: mean, median, std, quantile, IQR, range.
+- Zero/low consumption: zero ratio, low ratio, max zero streak.
+- Temporal trend: first/recent windows, first half vs second half, trend slope.
+- Volatility/spike/drop: daily change, spike count, drop count, streak.
+- Monthly/rolling/segment/calendar: monthly stats, rolling windows, 4 segments, weekday/weekend.
+- Quality and interaction: missing/zero/outlier signals and interactions.
 
----
+**Hình/visual nên dùng**
 
-## Slide 14. Feature Engineering - Statistical and Consumption Features
+- Một bảng/diagram nhóm feature.
+- Có thể hỗ trợ bằng `figures/04_time_series.png` và `figures/05_comparative_analysis.png`.
 
-**Nội dung chính**
+**Ghi chú thuyết trình**
 
-- Nhóm feature thống kê cơ bản:
-  - `mean_consumption`
-  - `median_consumption`
-  - `std_consumption`
-  - `min_consumption`, `max_consumption`
-  - `sum_consumption`
-  - `q25`, `q75`, `q90`, `q95`
-  - `iqr_consumption`, `range_consumption`
-  - `cv_consumption`
-- Nhóm log features:
-  - `mean_log1p_consumption`
-  - `std_log1p_consumption`
-  - `max_log1p_consumption`
-- Lý do: dữ liệu skew mạnh và có outlier, nên chỉ dùng mean là không đủ.
-
-**Nên trích xuất từ repo**
-
-- Code: `create_statistical_features()` trong `src/feature.py`.
-- Có thể minh họa bằng `figures/02_consumption_statistics.png`.
+Giải thích trực giác: model không học trực tiếp 1,034 ngày thô, mà học các dấu hiệu hành vi như mức tiêu thụ, độ biến động, thay đổi theo thời gian, số ngày bất thường và chất lượng dữ liệu.
 
 ---
 
-## Slide 15. Feature Engineering - Zero, Low Consumption and Streak Features
+## Slide 6. Thiết lập thí nghiệm và chống overfitting - 1.5 phút
 
-**Nội dung chính**
+**Thông điệp chính**
 
-- Nhóm feature phản ánh tiêu thụ thấp hoặc bằng 0:
-  - `zero_count_clean`
-  - `zero_ratio_clean`
-  - `low_consumption_count`
-  - `low_consumption_ratio`
-  - `max_zero_streak_clean`
-  - `max_low_streak_clean`
-- Ngưỡng low consumption: `<= 1.0 kWh`.
-- Lý do: nhiều ngày tiêu thụ bằng 0 hoặc thấp bất thường có thể phản ánh hành vi bất thường hoặc trạng thái inactive.
+- Chia dữ liệu stratified theo tỷ lệ:
+  - Train: `70%` (`29,660` khách hàng).
+  - Validation: `15%` (`6,356` khách hàng).
+  - Test: `15%` (`6,356` khách hàng).
+- Tỷ lệ theft được giữ gần như giống nhau ở cả 3 tập.
+- Validation dùng để chọn threshold.
+- Test chỉ dùng một lần cho đánh giá cuối.
+- Scaler của Logistic Regression chỉ fit trên train.
 
-**Nên trích xuất từ repo**
+**Hình/visual nên dùng**
 
-- Code: `add_zero_low_features()` trong `src/feature.py`.
-- Có thể dùng thêm `figures/05_comparative_analysis.png`.
-- Chưa có plot riêng cho max streak; nếu cần, có thể tạo mới từ `features.csv`.
+- Bảng split train/val/test và theft ratio.
 
----
+**Ghi chú thuyết trình**
 
-## Slide 16. Feature Engineering - Temporal and Trend Features
-
-**Nội dung chính**
-
-- Nhóm feature theo thời gian:
-  - `first_30_mean`, `first_90_mean`
-  - `recent_30_mean`, `recent_90_mean`, `recent_180_mean`
-  - `first_half_mean`, `second_half_mean`
-  - `recent30_to_first90_ratio`
-  - `second_half_to_first_half_ratio`
-  - log-ratio và difference giữa giai đoạn đầu/cuối
-  - `trend_slope`
-- Lý do: hành vi trộm điện có thể thể hiện qua thay đổi tiêu thụ theo thời gian, không chỉ qua mức tiêu thụ trung bình.
-
-**Nên trích xuất từ repo**
-
-- Code: `add_temporal_features()` trong `src/feature.py`.
-- Plot có sẵn hỗ trợ ý tưởng: `figures/04_time_series.png`.
+Chốt ý: test set không tham gia chọn threshold hay điều chỉnh model. Đây là lý do kết quả test có ý nghĩa hơn việc chỉ báo validation.
 
 ---
 
-## Slide 17. Feature Engineering - Volatility, Spike and Drop Features
+## Slide 7. Ba model dùng để so sánh - 1.5 phút
 
-**Nội dung chính**
+**Thông điệp chính**
 
-- Nhóm feature đo biến động theo ngày:
-  - `mean_daily_change`
-  - `mean_abs_daily_change`
-  - `max_abs_daily_change`
-  - `std_daily_change`
-- Spike/drop features:
-  - `spike_count`, `spike_ratio`
-  - `drop_count`, `drop_ratio`
-  - `max_spike_streak`, `max_drop_streak`
-  - `drop_to_spike_ratio`
-- Quy tắc spike/drop dùng:
-  - Absolute change threshold: `5.0`
-  - Relative change threshold: `0.5`
-- Lý do: tiêu thụ giảm/tăng đột ngột là tín hiệu hành vi quan trọng.
+- Logistic Regression + L2 + balanced:
+  - Baseline tuyến tính, dễ giải thích.
+  - `L2` giúp ổn định hệ số khi nhiều feature tương quan.
+  - `balanced` giúp model chú ý hơn tới lớp theft.
+- Random Forest:
+  - Nhóm bagging.
+  - Dùng nhiều cây quyết định độc lập để giảm variance.
+  - Config giữ theo notebook tham khảo, chỉ dùng cùng feature set hiện tại.
+- LightGBM:
+  - Nhóm boosting.
+  - Học tuần tự các cây để sửa lỗi của cây trước.
+  - Phù hợp dữ liệu tabular và quan hệ phi tuyến.
 
-**Nên trích xuất từ repo**
+**Hình/visual nên dùng**
 
-- Code: `add_volatility_features()` trong `src/feature.py`.
-- Chưa có plot riêng cho spike/drop; có thể tạo mới nếu slide cần minh họa trực quan.
+- Bảng 3 model: vai trò, nhóm thuật toán, lý do dùng.
 
----
+**Ghi chú thuyết trình**
 
-## Slide 18. Feature Engineering - Monthly, Rolling, Segment and Calendar Features
-
-**Nội dung chính**
-
-- Monthly features:
-  - mean/std theo từng tháng
-  - `monthly_mean_range`, `monthly_mean_std`
-- Rolling window features:
-  - Window: `7`, `30`, `90` ngày
-  - rolling mean/std average, min, max, range, ratio
-- Segment features:
-  - Chia chuỗi thành `4` đoạn.
-  - Tính mean/std từng đoạn, range, largest drop/increase.
-- Weekday/weekend features:
-  - mean/std ngày thường và cuối tuần.
-  - weekend-to-weekday ratio/log-ratio/difference.
-
-**Nên trích xuất từ repo**
-
-- Code:
-  - `add_monthly_features()`
-  - `add_rolling_features()`
-  - `add_segment_features()`
-  - `add_weekday_weekend_features()`
-- Plot có sẵn hỗ trợ ý tưởng: `figures/04_time_series.png`.
+Nói rõ LR không còn là model chính, nhưng vẫn giữ vì nó là baseline giải thích tốt. Model chính được chọn theo kết quả đánh giá cuối, hiện tại là LightGBM.
 
 ---
 
-## Slide 19. Feature Engineering - Merge Quality and Interaction Features
+## Slide 8. Threshold tuning: vì sao không chỉ dùng 0.5 - 1.5 phút
 
-**Nội dung chính**
+**Thông điệp chính**
 
-- Merge các raw quality features từ `quality_features.csv` vào bảng feature.
-- Bổ sung các cờ/tín hiệu:
-  - `is_all_missing_raw`
-  - `is_high_missing_raw`
-  - `is_very_high_missing_raw`
-  - `has_outlier_raw`
-  - `max_consumption_raw_missing`
-  - log-transform cho missing/zero/outlier/max consumption.
-- Interaction features:
-  - `missing_x_zero_ratio`
-  - `missing_x_low_ratio`
-  - `missing_x_recent_drop`
-  - `outlier_x_volatility`
-  - `outlier_x_max_change`
-  - `drop_x_recent_drop`
-  - `drop_x_segment_drop`
-  - `missing_x_outlier`
-- Lý do: missing/zero/outlier không chỉ là noise mà có thể kết hợp với hành vi tiêu thụ để tạo tín hiệu mạnh hơn.
+- Mỗi model trả ra score xác suất/độ tin cậy.
+- Threshold quyết định khi nào score được xem là theft.
+- Với dữ liệu mất cân bằng, threshold `0.5` không nhất thiết tối ưu.
+- Notebook so sánh:
+  - Default `0.50`.
+  - Best F1 trên validation.
+  - Best F2 trên validation.
+- Final test dùng threshold Best F2 từ validation.
 
-**Nên trích xuất từ repo**
+**Hình/visual nên dùng**
 
-- Code:
-  - `merge_quality_features()`
-  - `add_interaction_features()`
-- Output từ `data/processed/features.csv`, các cột cuối file là interaction features.
+- `figures/pr_curve_validation.png`.
+- `figures/threshold_tradeoff.png`.
+
+**Ghi chú thuyết trình**
+
+Giải thích F2 ưu tiên Recall hơn Precision. Trong bối cảnh phát hiện trộm điện, chấp nhận tăng false positive ở mức hợp lý để giảm false negative.
 
 ---
 
-## Slide 20. Feature Engineering - Kiểm tra feature cuối
+## Slide 9. Kết quả test cuối cùng - 2.0 phút
 
-**Nội dung chính**
+**Thông điệp chính**
 
-- `features.csv` hiện tại:
-  - Shape: `42,372 x 163`
-  - Số model features: `161`
-  - Missing feature cells: `0`
-  - Inf feature cells: `0`
-- Có 2 constant features:
-  - `negative_count_raw`
-  - `negative_ratio_raw`
-- Hai feature này nên drop ở bước training vì dữ liệu hiện tại không có giá trị âm.
-- Top feature có tương quan tuyệt đối cao với `FLAG` chủ yếu thuộc nhóm rolling/volatility:
-  - `roll30_mean_range`
-  - `roll90_mean_range`
-  - `roll7_mean_range`
-  - `roll7_mean_std`
-  - `weekend_std`
-  - `roll30_mean_max`
+| Model | Threshold | Precision | Recall | F2 | PR-AUC | ROC-AUC |
+|---|---:|---:|---:|---:|---:|---:|
+| LightGBM benchmark | `0.4368` | `0.2885` | `0.6458` | `0.5176` | `0.4489` | `0.8387` |
+| Random Forest benchmark | `0.3000` | `0.2498` | `0.6439` | `0.4895` | `0.3661` | `0.8092` |
+| LR + L2 + balanced | `0.5400` | `0.2162` | `0.5756` | `0.4320` | `0.3117` | `0.7772` |
 
-**Nên trích xuất từ repo**
+**Kết luận từ bảng**
 
-- Output có sẵn trong `notebooks/check_features.ipynb`.
-- File output: `data/processed/features.csv`.
-- Chưa có plot standalone cho top correlation trong `figures/`; nếu cần, có thể tạo thêm bar chart từ `check_features.ipynb` hoặc `features.csv`.
+- LightGBM tốt nhất trên F2, PR-AUC và ROC-AUC.
+- Random Forest có Recall gần LightGBM nhưng Precision và PR-AUC thấp hơn.
+- Logistic Regression là baseline dễ giải thích nhưng kém hơn hai mô hình cây.
+
+**Hình/visual nên dùng**
+
+- Bảng kết quả lớn, dễ đọc.
+- Có thể kèm bar chart F2/PR-AUC nếu làm slide.
+
+**Ghi chú thuyết trình**
+
+Đừng chỉ nói LightGBM cao nhất. Hãy giải thích: LightGBM vừa bắt được nhiều theft hơn LR, vừa xếp hạng theft tốt hơn RF qua PR-AUC.
 
 ---
 
-## Slide 21. Feature Engineering - Kết luận cho bước modeling
+## Slide 10. Confusion matrix và ý nghĩa lỗi - 1.5 phút
 
-**Nội dung chính**
+**Thông điệp chính**
 
-- Final model input là bảng feature cấp khách hàng, không phải chuỗi ngày thô.
-- `CONS_NO` chỉ dùng để tracking/error analysis, không dùng làm feature.
-- `FLAG` là target.
-- Feature set bao phủ:
-  - central tendency
-  - dispersion
-  - zero/low usage behavior
-  - temporal trend
-  - volatility/spike/drop
-  - monthly/rolling/segment/calendar patterns
-  - raw data quality signals
-  - interaction features
-- Feature table đã sẵn sàng cho bước huấn luyện mô hình tiếp theo.
+Với LightGBM tại threshold `0.4368` trên test:
 
-**Nên trích xuất từ repo**
+- True Positive: `350`.
+- False Negative: `192`.
+- False Positive: `863`.
+- Recall: `64.58%`.
+- Precision: `28.85%`.
 
-- Code: `src/feature.py`.
-- Output: `data/processed/features.csv`.
-- Có thể dùng một bảng tóm tắt feature groups tự tạo trong slide; repo chưa có diagram tổng hợp nhóm feature.
+**Cách diễn giải**
+
+- Model phát hiện được khoảng `2/3` khách hàng theft trong test.
+- Precision còn thấp vì theft là lớp hiếm, nên khi mở rộng phát hiện sẽ kéo theo nhiều false positive.
+- False positive có thể xem là danh sách cần kiểm tra thêm, không phải kết luận vi phạm cuối cùng.
+
+**Hình/visual nên dùng**
+
+- `figures/confusion_matrix_test.png`.
+
+**Ghi chú thuyết trình**
+
+Nói rõ vai trò của model là screening/ranking. Trong thực tế, kết quả model nên hỗ trợ quyết định kiểm tra, không thay thế hoàn toàn nghiệp vụ.
+
+---
+
+## Slide 11. Feature importance và khả năng giải thích - 1.5 phút
+
+**Thông điệp chính**
+
+- Logistic Regression cho biết hướng ảnh hưởng qua hệ số.
+- LightGBM cho biết feature nào được dùng nhiều trong split.
+- Các feature quan trọng chủ yếu liên quan đến:
+  - Rolling consumption.
+  - Volatility.
+  - Segment/time trend.
+  - Missing/zero/outlier behavior.
+- Điều này khớp với trực giác EDA: hành vi theft không chỉ nằm ở mức tiêu thụ trung bình mà còn ở biến động và thay đổi theo thời gian.
+
+**Hình/visual nên dùng**
+
+- `figures/feature_importance.png`.
+
+**Ghi chú thuyết trình**
+
+Không cần đọc từng feature. Nên gom theo nhóm feature và liên hệ lại với insight EDA ban đầu.
+
+---
+
+## Slide 12. Generalization, giới hạn và rủi ro - 1.0 phút
+
+**Thông điệp chính**
+
+- Train/validation/test được tách rõ nên giảm rủi ro đánh giá lạc quan.
+- LightGBM thắng rõ ở test nhưng vẫn có giới hạn:
+  - Precision thấp do dữ liệu mất cân bằng.
+  - Dữ liệu là historical dataset, có thể khác phân phối thực tế.
+  - Threshold cần điều chỉnh theo chi phí kiểm tra thực tế.
+- Hiện chưa tune quá mạnh để tránh làm kết quả khó giải thích và phụ thuộc validation.
+
+**Hình/visual nên dùng**
+
+- Bảng nhỏ: Strengths vs Limitations.
+
+**Ghi chú thuyết trình**
+
+Thể hiện hiểu trade-off: tăng Recall thường làm tăng false positive. Kết quả hiện tại đủ tốt để báo cáo học thuật, nhưng để triển khai thực tế cần thêm dữ liệu, cost matrix và kiểm định ngoài mẫu.
+
+---
+
+## Slide 13. Đề xuất web demo - 1.0 phút
+
+**Thông điệp chính**
+
+- Web demo nên dùng model bundle đã train sẵn trong `models/energy_theft_model_bundle.pkl`.
+- Dữ liệu demo lấy từ `15%` test set để mô phỏng khách hàng chưa thấy khi train.
+- Không cho người dùng nhập thủ công 159 feature vì không thực tế.
+- Flow demo đề xuất:
+  1. Chọn một khách hàng từ tập test.
+  2. Hiển thị thông tin tóm tắt feature.
+  3. Model trả score theft probability.
+  4. So sánh score với threshold.
+  5. Hiển thị kết luận: Low / Medium / High risk.
+
+**Output web đề xuất**
+
+- Model được dùng: LightGBM benchmark.
+- Theft score.
+- Threshold hiện tại: `0.4368`.
+- Prediction: Normal hoặc Suspected theft.
+- Một số feature nổi bật của khách hàng.
+- Ground truth chỉ nên bật trong chế độ học tập/kiểm tra, không xem như thông tin có sẵn khi demo thực tế.
+
+**Ghi chú thuyết trình**
+
+Demo nên thể hiện model hoạt động như công cụ hỗ trợ ra quyết định. Không nên thiết kế demo như form nhập 159 cột vì người dùng cuối sẽ khó hiểu và dễ nhập sai.
+
+---
+
+## Slide 14. Kết luận - 1.0 phút
+
+**Thông điệp chính**
+
+- Repo đã xây dựng pipeline đầy đủ:
+  - Preprocessing chống leakage.
+  - Feature engineering cấp khách hàng.
+  - So sánh 3 model.
+  - Threshold tuning trên validation.
+  - Đánh giá cuối trên test.
+- Model tốt nhất hiện tại: LightGBM benchmark.
+- Kết quả test:
+  - F2: `0.5176`.
+  - Recall: `0.6458`.
+  - PR-AUC: `0.4489`.
+  - ROC-AUC: `0.8387`.
+- Logistic Regression vẫn hữu ích để giải thích baseline.
+- Random Forest bổ sung so sánh bagging, nằm giữa LR và LightGBM.
+
+**Ghi chú thuyết trình**
+
+Kết thúc bằng thông điệp: mô hình không nhằm kết luận ai trộm điện ngay lập tức, mà giúp ưu tiên danh sách khách hàng cần kiểm tra dựa trên rủi ro.
