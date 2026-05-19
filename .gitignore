@@ -31,6 +31,7 @@ build/
 .env.*
 !.env.example
 /CLAUDE.md
+/web/CLAUDE_WEB_PROMPT.md
 
 # Data files generated or downloaded locally
 data/raw/
