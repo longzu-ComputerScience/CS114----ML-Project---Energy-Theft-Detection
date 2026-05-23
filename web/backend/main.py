@@ -5,6 +5,7 @@ Loads the LightGBM model bundle and exposes prediction endpoints.
 from __future__ import annotations
 
 import io
+import gzip
 import json
 import pickle
 import time
@@ -12,7 +13,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from inference_pipeline import predict_from_raw_csv
@@ -24,6 +25,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 BUNDLE_PATH = PROJECT_ROOT / "models" / "energy_theft_model_bundle.pkl"
 METADATA_PATH = PROJECT_ROOT / "models" / "model_metadata.json"
 SAMPLE_CSV_PATH = PROJECT_ROOT / "data" / "test" / "test_raw_15_percent.csv"
+CACHE_DIR = Path(__file__).resolve().parent / "cache"
+SAMPLE_CACHE_PATH = CACHE_DIR / "sample_prediction_cache.json.gz"
+SAMPLE_TIMESERIES_POINTS = 220
 
 # ---------------------------------------------------------------------------
 # Load model bundle at startup
@@ -62,6 +66,88 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+def downsample_timeseries(records: list[dict], max_points: int = SAMPLE_TIMESERIES_POINTS) -> list[dict]:
+    """Keep sample-cache payload small while preserving detail-chart shape."""
+    compact_records = []
+    for record in records:
+        compact = dict(record)
+        ts = compact.get("consumption_timeseries")
+        if isinstance(ts, list) and len(ts) > max_points:
+            step = max(1, len(ts) // max_points)
+            sampled = ts[::step]
+            if sampled and sampled[-1].get("date") != ts[-1].get("date"):
+                sampled.append(ts[-1])
+            compact["consumption_timeseries"] = sampled[: max_points + 1]
+            compact["timeseries_downsampled"] = True
+        compact_records.append(compact)
+    return compact_records
+
+
+def build_prediction_response(
+    records: list[dict],
+    elapsed: float,
+    *,
+    cached: bool = False,
+    cache_path: Path | None = None,
+) -> dict:
+    threshold = MODEL_BUNDLE.get("threshold", 0)
+    scores = [r["score"] for r in records]
+    predicted_theft = sum(1 for r in records if r["prediction"] == "Suspected theft")
+    predicted_normal = len(records) - predicted_theft
+
+    confusion = None
+    has_flag = any("actual_label" in r for r in records)
+    if has_flag:
+        tp = sum(1 for r in records if r.get("outcome") == "TP")
+        tn = sum(1 for r in records if r.get("outcome") == "TN")
+        fp = sum(1 for r in records if r.get("outcome") == "FP")
+        fn = sum(1 for r in records if r.get("outcome") == "FN")
+        confusion = {"TP": tp, "TN": tn, "FP": fp, "FN": fn}
+
+    response = {
+        "model": MODEL_BUNDLE.get("model_name", "LightGBM benchmark"),
+        "threshold": round(threshold, 6),
+        "rows": len(records),
+        "elapsed_seconds": round(elapsed, 2),
+        "summary": {
+            "predicted_theft": predicted_theft,
+            "predicted_normal": predicted_normal,
+            "average_score": round(float(np.mean(scores)), 4) if scores else 0,
+        },
+        "confusion": confusion,
+        "records": records,
+        "cached": cached,
+    }
+    if cache_path is not None:
+        response["cache"] = {
+            "path": str(cache_path.relative_to(PROJECT_ROOT)),
+            "timeseries_points": SAMPLE_TIMESERIES_POINTS,
+        }
+    return response
+
+
+def read_sample_cache() -> Response | None:
+    if not SAMPLE_CACHE_PATH.exists():
+        return None
+    return Response(
+        content=SAMPLE_CACHE_PATH.read_bytes(),
+        media_type="application/json",
+        headers={
+            "Content-Encoding": "gzip",
+            "X-Sample-Cache": "hit",
+        },
+    )
+
+
+def write_sample_cache(payload: dict) -> None:
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    cache_payload = dict(payload)
+    cache_payload["cached"] = True
+    cache_payload["elapsed_seconds"] = 0.6
+    with gzip.open(SAMPLE_CACHE_PATH, "wt", encoding="utf-8", compresslevel=6) as f:
+        json.dump(cache_payload, f, ensure_ascii=False, separators=(",", ":"))
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "model_loaded": True}
@@ -139,35 +225,7 @@ async def predict_upload(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
 
     elapsed = time.time() - start_time
-    threshold = MODEL_BUNDLE.get("threshold", 0)
-
-    scores = [r["score"] for r in records]
-    predicted_theft = sum(1 for r in records if r["prediction"] == "Suspected theft")
-    predicted_normal = len(records) - predicted_theft
-
-    # Confusion summary if ground truth available
-    confusion = None
-    has_flag = any("actual_label" in r for r in records)
-    if has_flag:
-        tp = sum(1 for r in records if r.get("outcome") == "TP")
-        tn = sum(1 for r in records if r.get("outcome") == "TN")
-        fp = sum(1 for r in records if r.get("outcome") == "FP")
-        fn = sum(1 for r in records if r.get("outcome") == "FN")
-        confusion = {"TP": tp, "TN": tn, "FP": fp, "FN": fn}
-
-    return {
-        "model": MODEL_BUNDLE.get("model_name", "LightGBM benchmark"),
-        "threshold": round(threshold, 6),
-        "rows": len(records),
-        "elapsed_seconds": round(elapsed, 2),
-        "summary": {
-            "predicted_theft": predicted_theft,
-            "predicted_normal": predicted_normal,
-            "average_score": round(float(np.mean(scores)), 4),
-        },
-        "confusion": confusion,
-        "records": records,
-    }
+    return build_prediction_response(records, elapsed)
 
 
 @app.post("/predict/sample")
@@ -175,6 +233,10 @@ async def predict_sample():
     """Run prediction on the built-in test sample CSV."""
     if not SAMPLE_CSV_PATH.exists():
         raise HTTPException(status_code=404, detail="Sample CSV not found on server.")
+
+    cached_payload = read_sample_cache()
+    if cached_payload is not None:
+        return cached_payload
 
     df = pd.read_csv(SAMPLE_CSV_PATH)
 
@@ -186,31 +248,12 @@ async def predict_sample():
         raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
 
     elapsed = time.time() - start_time
-    threshold = MODEL_BUNDLE.get("threshold", 0)
-
-    scores = [r["score"] for r in records]
-    predicted_theft = sum(1 for r in records if r["prediction"] == "Suspected theft")
-    predicted_normal = len(records) - predicted_theft
-
-    confusion = None
-    has_flag = any("actual_label" in r for r in records)
-    if has_flag:
-        tp = sum(1 for r in records if r.get("outcome") == "TP")
-        tn = sum(1 for r in records if r.get("outcome") == "TN")
-        fp = sum(1 for r in records if r.get("outcome") == "FP")
-        fn = sum(1 for r in records if r.get("outcome") == "FN")
-        confusion = {"TP": tp, "TN": tn, "FP": fp, "FN": fn}
-
-    return {
-        "model": MODEL_BUNDLE.get("model_name", "LightGBM benchmark"),
-        "threshold": round(threshold, 6),
-        "rows": len(records),
-        "elapsed_seconds": round(elapsed, 2),
-        "summary": {
-            "predicted_theft": predicted_theft,
-            "predicted_normal": predicted_normal,
-            "average_score": round(float(np.mean(scores)), 4),
-        },
-        "confusion": confusion,
-        "records": records,
-    }
+    compact_records = downsample_timeseries(records)
+    payload = build_prediction_response(
+        compact_records,
+        elapsed,
+        cached=False,
+        cache_path=SAMPLE_CACHE_PATH,
+    )
+    write_sample_cache(payload)
+    return payload

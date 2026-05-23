@@ -1021,8 +1021,139 @@ body {
   text-align: center;
 }
 
+.loader-progress-dynamic {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(167, 177, 191, 0.13);
+}
+
+.loader-progress-dynamic span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent-cyan), var(--accent-blue), var(--accent-amber));
+  box-shadow: 0 0 22px rgba(33, 199, 183, 0.18);
+  transition: width 0.28s ease;
+}
+
+.loader-steps-dynamic {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.loader-step {
+  min-height: 86px;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: rgba(15, 20, 26, 0.72);
+  transition: border-color 0.25s ease, background 0.25s ease, transform 0.25s ease;
+}
+
+.loader-step.complete {
+  border-color: rgba(34, 197, 94, 0.28);
+  background: rgba(34, 197, 94, 0.06);
+}
+
+.loader-step.active {
+  border-color: rgba(33, 199, 183, 0.46);
+  background: rgba(33, 199, 183, 0.1);
+  transform: translateY(-2px);
+}
+
+.step-index {
+  display: block;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+}
+
+.loader-step strong {
+  display: block;
+  margin-top: 5px;
+  color: var(--text-primary);
+  font-size: 0.84rem;
+}
+
+.loader-step small {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.loader-console {
+  position: relative;
+  min-height: 148px;
+  max-height: 148px;
+  margin-top: 18px;
+  overflow: hidden;
+  padding: 14px 16px;
+  border: 1px solid rgba(167, 177, 191, 0.12);
+  border-radius: var(--radius-md);
+  background: rgba(7, 10, 14, 0.76);
+  font-family: var(--font-mono);
+}
+
+.loader-console::before,
+.loader-console::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 28px;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.loader-console::before {
+  top: 0;
+  background: linear-gradient(180deg, rgba(7, 10, 14, 0.96), transparent);
+}
+
+.loader-console::after {
+  bottom: 0;
+  background: linear-gradient(0deg, rgba(7, 10, 14, 0.96), transparent);
+}
+
+.log-line {
+  color: rgba(203, 213, 225, 0.56);
+  font-size: 0.8rem;
+  line-height: 1.55;
+  animation: logRise 0.42s ease-out both;
+}
+
+.log-line.current {
+  color: #e2e8f0;
+  text-shadow: 0 0 18px rgba(33, 199, 183, 0.18);
+}
+
 .results-stack {
   animation: resultEnter 0.35s ease-out both;
+}
+
+.reveal-on-scroll {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 0.46s ease, transform 0.46s ease, border-color 0.25s ease;
+}
+
+.reveal-on-scroll.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.summary-grid.is-visible .stat-card {
+  animation: statCardLift 0.48s ease-out both;
+  animation-delay: var(--reveal-delay, 0ms);
+}
+
+.chart-card.is-visible .recharts-wrapper {
+  animation: chartFadeIn 0.55s ease-out both;
 }
 
 @keyframes signalTravel {
@@ -1091,6 +1222,39 @@ body {
   from {
     opacity: 0;
     transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes logRise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes statCardLift {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes chartFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
@@ -1350,7 +1514,8 @@ body {
   }
 
   .empty-metrics,
-  .loader-steps {
+  .loader-steps,
+  .loader-steps-dynamic {
     grid-template-columns: 1fr;
   }
 

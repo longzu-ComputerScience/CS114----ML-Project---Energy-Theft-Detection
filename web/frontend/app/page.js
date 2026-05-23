@@ -37,6 +37,12 @@ import {
 
 const API = "http://127.0.0.1:8000";
 
+function waitForMinimum(startedAt, minMs) {
+  const remaining = minMs - (Date.now() - startedAt);
+  if (remaining <= 0) return Promise.resolve();
+  return new Promise((resolve) => setTimeout(resolve, remaining));
+}
+
 /* ─── Helpers ─── */
 function riskColor(level) {
   const m = {
@@ -96,7 +102,7 @@ function ModelCard({ info }) {
 }
 
 /* ─── Upload Panel ─── */
-function UploadPanel({ onResult, loading, setLoading }) {
+function UploadPanel({ onResult, loading, setLoading, setLoadingMode, setLoadingStartedAt }) {
   const inputRef = useRef(null);
   const [dragOver, setDragOver] = useState(false);
   const [fileName, setFileName] = useState("");
@@ -104,6 +110,9 @@ function UploadPanel({ onResult, loading, setLoading }) {
   async function handleFile(file) {
     if (!file) return;
     setFileName(file.name);
+    const startedAt = Date.now();
+    setLoadingMode("upload");
+    setLoadingStartedAt(startedAt);
     setLoading(true);
     try {
       const form = new FormData();
@@ -114,16 +123,21 @@ function UploadPanel({ onResult, loading, setLoading }) {
         throw new Error(err.detail || `Server error ${res.status}`);
       }
       const data = await res.json();
+      await waitForMinimum(startedAt, 1200);
       onResult(data);
     } catch (e) {
       alert("Prediction failed: " + e.message);
     } finally {
       setLoading(false);
+      setLoadingMode(null);
     }
   }
 
   async function handleSample() {
     setFileName("test_raw_15_percent.csv (sample)");
+    const startedAt = Date.now();
+    setLoadingMode("sample");
+    setLoadingStartedAt(startedAt);
     setLoading(true);
     try {
       const res = await fetch(`${API}/predict/sample`, { method: "POST" });
@@ -132,11 +146,13 @@ function UploadPanel({ onResult, loading, setLoading }) {
         throw new Error(err.detail || `Server error ${res.status}`);
       }
       const data = await res.json();
+      await waitForMinimum(startedAt, 3200);
       onResult(data);
     } catch (e) {
       alert("Sample prediction failed: " + e.message);
     } finally {
       setLoading(false);
+      setLoadingMode(null);
     }
   }
 
@@ -271,7 +287,120 @@ function EmptyDashboardPreview({ modelInfo }) {
 }
 
 /* ─── Inference Loading ─── */
-function InferenceLoading() {
+function InferenceLoading({ mode = "upload", startedAt }) {
+  const steps = useMemo(() => {
+    if (mode === "sample") {
+      return [
+        {
+          label: "Sample",
+          detail: "Load cached output",
+          outputs: [
+            "[SAMPLE] Built-in test sample selected: 6,356 rows",
+            "[CACHE] Reading local LightGBM output cache",
+          ],
+        },
+        {
+          label: "Features",
+          detail: "Restore processed fields",
+          outputs: [
+            "[FEATURE] 159 active features available",
+            "[FEATURE] Downsampled consumption traces loaded for detail charts",
+          ],
+        },
+        {
+          label: "Scores",
+          detail: "Apply threshold",
+          outputs: [
+            "[MODEL] LightGBM score distribution restored",
+            "[MODEL] Applying validation Best-F2 threshold",
+          ],
+        },
+        {
+          label: "Output",
+          detail: "Render dashboard",
+          outputs: [
+            "[UI] Building summary cards, charts and customer table",
+            "[UI] Preparing scroll reveal animations",
+          ],
+        },
+      ];
+    }
+    return [
+      {
+        label: "Upload",
+        detail: "Validate schema",
+        outputs: [
+          "[UPLOAD] CSV received and parsed",
+          "[VALIDATE] Checking CONS_NO and daily consumption columns",
+        ],
+      },
+      {
+        label: "Preprocess",
+        detail: "Clean raw series",
+        outputs: [
+          "[PREPROCESS] Handling negatives, outliers and missing values",
+          "[PREPROCESS] Preserving raw quality signals",
+        ],
+      },
+      {
+        label: "Features",
+        detail: "Create 159 inputs",
+        outputs: [
+          "[FEATURE] Rolling, volatility, segment and calendar features",
+          "[FEATURE] Aligning active feature order with model bundle",
+        ],
+      },
+      {
+        label: "Predict",
+        detail: "LightGBM inference",
+        outputs: [
+          "[MODEL] Running predict_proba for Theft class",
+          "[MODEL] Applying threshold and risk levels",
+        ],
+      },
+      {
+        label: "Output",
+        detail: "Render dashboard",
+        outputs: [
+          "[UI] Building summary cards, charts and customer table",
+          "[UI] Preparing scroll reveal animations",
+        ],
+      },
+    ];
+  }, [mode]);
+
+  const estimatedMs = mode === "sample" ? 3200 : 11000;
+  const [progress, setProgress] = useState(4);
+  const [activeStep, setActiveStep] = useState(0);
+  const logItems = useMemo(
+    () =>
+      steps
+        .slice(0, activeStep + 1)
+        .flatMap((step, stepIndex) =>
+          step.outputs.map((text, outputIndex) => ({
+            id: `${stepIndex}-${outputIndex}-${text}`,
+            text,
+          }))
+        )
+        .slice(-8),
+    [activeStep, steps]
+  );
+
+  useEffect(() => {
+    const tick = () => {
+      const elapsed = Date.now() - (startedAt || Date.now());
+      const nextProgress = Math.min(96, Math.max(4, (elapsed / estimatedMs) * 100));
+      const nextStep = Math.min(
+        steps.length - 1,
+        Math.floor((nextProgress / 100) * steps.length)
+      );
+      setProgress(nextProgress);
+      setActiveStep(nextStep);
+    };
+    const id = setInterval(tick, 160);
+    return () => clearInterval(id);
+  }, [estimatedMs, startedAt, steps.length]);
+
   return (
     <div className="loading-overlay" role="status" aria-live="polite">
       <div className="inference-loader">
@@ -283,39 +412,32 @@ function InferenceLoading() {
           </span>
         </div>
 
-        <div className="loader-graph" aria-hidden="true">
-          <div className="loader-node active">
-            <Database size={18} />
-          </div>
-          <div className="loader-path">
-            <span />
-          </div>
-          <div className="loader-node active delay-1">
-            <Activity size={18} />
-          </div>
-          <div className="loader-path">
-            <span />
-          </div>
-          <div className="loader-node active delay-2">
-            <Zap size={18} />
-          </div>
-          <div className="loader-path">
-            <span />
-          </div>
-          <div className="loader-node active delay-3">
-            <Shield size={18} />
-          </div>
+        <div className="loader-progress-dynamic" aria-hidden="true">
+          <span style={{ width: `${progress}%` }} />
         </div>
 
-        <div className="loader-progress">
-          <span />
+        <div className="loader-steps-dynamic">
+          {steps.map((step, index) => (
+            <div
+              key={step.label}
+              className={`loader-step${index < activeStep ? " complete" : ""}${index === activeStep ? " active" : ""}`}
+            >
+              <span className="step-index">{String(index + 1).padStart(2, "0")}</span>
+              <strong>{step.label}</strong>
+              <small>{step.detail}</small>
+            </div>
+          ))}
         </div>
 
-        <div className="loader-steps">
-          <span>Preprocessing</span>
-          <span>Feature engineering</span>
-          <span>LightGBM predict</span>
-          <span>Thresholding</span>
+        <div className="loader-console" aria-label="Pipeline log output">
+          {logItems.map((item, index) => (
+            <div
+              className={`log-line${index === logItems.length - 1 ? " current" : ""}`}
+              key={item.id}
+            >
+              {item.text}
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -330,26 +452,26 @@ function SummaryStats({ result }) {
 
   return (
     <>
-      <div className="grid-4 mb-24">
-        <div className="stat-card">
+      <div className="grid-4 mb-24 summary-grid reveal-on-scroll">
+        <div className="stat-card" style={{ "--reveal-delay": "0ms" }}>
           <span className="stat-label">Total Customers</span>
           <span className="stat-value">{rows.toLocaleString()}</span>
           <span className="stat-sub">{elapsed_seconds}s inference</span>
         </div>
-        <div className="stat-card">
+        <div className="stat-card" style={{ "--reveal-delay": "70ms" }}>
           <span className="stat-label">Suspected Theft</span>
           <span className="stat-value" style={{ color: "var(--risk-critical)" }}>
             {summary.predicted_theft.toLocaleString()}
           </span>
           <span className="stat-sub">{theftRatio}% of total</span>
         </div>
-        <div className="stat-card">
+        <div className="stat-card" style={{ "--reveal-delay": "140ms" }}>
           <span className="stat-label">Normal</span>
           <span className="stat-value" style={{ color: "var(--risk-low)" }}>
             {summary.predicted_normal.toLocaleString()}
           </span>
         </div>
-        <div className="stat-card">
+        <div className="stat-card" style={{ "--reveal-delay": "210ms" }}>
           <span className="stat-label">Average Score</span>
           <span className="stat-value font-mono">{summary.average_score.toFixed(4)}</span>
           <span className="stat-sub">Threshold: {threshold.toFixed(4)}</span>
@@ -367,7 +489,7 @@ function ConfusionPanel({ confusion }) {
   const accuracy = ((confusion.TP + confusion.TN) / total * 100).toFixed(1);
 
   return (
-    <div className="card mb-24">
+    <div className="card mb-24 reveal-on-scroll">
       <div className="card-header">
         <div className="icon">
           <BarChart3 size={18} />
@@ -458,7 +580,7 @@ function ScoreDistribution({ records, threshold }) {
   }, [records]);
 
   return (
-    <div className="card mb-24">
+    <div className="card mb-24 chart-card reveal-on-scroll">
       <div className="card-header">
         <div className="icon">
           <Activity size={18} />
@@ -533,7 +655,7 @@ function ResultsTable({ records, selectedIdx, onSelect }) {
   const hasOutcome = records.some((r) => r.outcome);
 
   return (
-    <div className="card">
+    <div className="card table-card reveal-on-scroll">
       <div className="card-header" style={{ marginBottom: 12 }}>
         <div className="icon">
           <Users size={18} />
@@ -667,7 +789,7 @@ function DetailPanel({ record, onClose }) {
   const fs = record.feature_summary || {};
 
   return (
-    <div className="detail-panel">
+    <div className="detail-panel reveal-on-scroll">
       <div className="detail-header">
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <h3 className="font-mono">{record.cons_no}</h3>
@@ -772,6 +894,8 @@ export default function HomePage() {
   const [modelInfo, setModelInfo] = useState(null);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [loadingMode, setLoadingMode] = useState(null);
+  const [loadingStartedAt, setLoadingStartedAt] = useState(null);
   const [selectedIdx, setSelectedIdx] = useState(null);
   const [healthy, setHealthy] = useState(null);
 
@@ -789,6 +913,24 @@ export default function HomePage() {
 
   const selectedRecord =
     result && selectedIdx !== null ? result.records[selectedIdx] : null;
+
+  useEffect(() => {
+    if (!result) return;
+    const elements = document.querySelectorAll(".reveal-on-scroll");
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("is-visible");
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.12, rootMargin: "0px 0px -40px 0px" }
+    );
+    elements.forEach((element) => observer.observe(element));
+    return () => observer.disconnect();
+  }, [result, selectedIdx]);
 
   return (
     <div className="app-container">
@@ -821,13 +963,19 @@ export default function HomePage() {
       {/* Model card + Upload side by side */}
       <div className="grid-2 top-grid mb-32">
         <ModelCard info={modelInfo} />
-        <UploadPanel onResult={setResult} loading={loading} setLoading={setLoading} />
+        <UploadPanel
+          onResult={setResult}
+          loading={loading}
+          setLoading={setLoading}
+          setLoadingMode={setLoadingMode}
+          setLoadingStartedAt={setLoadingStartedAt}
+        />
       </div>
 
       {!result && !loading && <EmptyDashboardPreview modelInfo={modelInfo} />}
 
       {/* Loading */}
-      {loading && <InferenceLoading />}
+      {loading && <InferenceLoading mode={loadingMode || "upload"} startedAt={loadingStartedAt} />}
 
       {/* Results */}
       {result && !loading && (
