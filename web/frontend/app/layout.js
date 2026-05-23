@@ -4,6 +4,11 @@ export const metadata = {
   title: "Energy Theft Detection – Dashboard",
   description:
     "Real-time electricity theft risk analysis powered by LightGBM. Upload customer consumption data and detect anomalies instantly.",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({ children }) {

@@ -183,6 +183,145 @@ function UploadPanel({ onResult, loading, setLoading }) {
   );
 }
 
+/* ─── Empty State Preview ─── */
+function EmptyDashboardPreview({ modelInfo }) {
+  const threshold = modelInfo?.threshold ? modelInfo.threshold.toFixed(4) : "0.4368";
+
+  return (
+    <section className="empty-dashboard" aria-label="LightGBM inference preview">
+      <div className="empty-copy">
+        <span className="section-kicker">Inference workspace</span>
+        <h2>LightGBM risk scoring is ready</h2>
+        <p>
+          Upload raw consumption data or run the test sample to generate theft-risk
+          scores, thresholded predictions, and customer-level diagnostics.
+        </p>
+        <div className="empty-metrics">
+          <div>
+            <span>Model</span>
+            <strong>LightGBM</strong>
+          </div>
+          <div>
+            <span>Threshold</span>
+            <strong className="font-mono">{threshold}</strong>
+          </div>
+          <div>
+            <span>Features</span>
+            <strong>{modelInfo?.feature_count || 159}</strong>
+          </div>
+        </div>
+      </div>
+
+      <div className="signal-panel">
+        <div className="signal-grid" />
+        <div className="signal-flow">
+          <div className="pipeline-node source">
+            <Database size={18} />
+            <span>Raw CSV</span>
+          </div>
+          <div className="pipeline-link" />
+          <div className="pipeline-node features">
+            <Activity size={18} />
+            <span>Features</span>
+          </div>
+          <div className="pipeline-link delay" />
+          <div className="pipeline-node model">
+            <Zap size={18} />
+            <span>LightGBM</span>
+          </div>
+        </div>
+
+        <div className="wave-card">
+          <div className="wave-header">
+            <span>consumption signal</span>
+            <span className="pulse-dot" />
+          </div>
+          <div className="waveform" aria-hidden="true">
+            {Array.from({ length: 42 }, (_, i) => (
+              <span key={i} style={{ "--i": i }} />
+            ))}
+          </div>
+        </div>
+
+        <div className="score-console">
+          <div className="score-line">
+            <span>score</span>
+            <strong>0.72</strong>
+          </div>
+          <div className="score-track">
+            <span className="threshold-marker" />
+            <span className="score-fill" />
+          </div>
+          <div className="score-labels">
+            <span>Normal</span>
+            <span>Review</span>
+            <span>Theft risk</span>
+          </div>
+        </div>
+
+        <div className="feature-chips" aria-hidden="true">
+          <span>rolling std</span>
+          <span>missing streak</span>
+          <span>zero ratio</span>
+          <span>outlier x change</span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─── Inference Loading ─── */
+function InferenceLoading() {
+  return (
+    <div className="loading-overlay" role="status" aria-live="polite">
+      <div className="inference-loader">
+        <div className="loader-topline">
+          <span className="section-kicker">Inference running</span>
+          <span className="loader-badge">
+            <span className="pulse-dot" />
+            LightGBM pipeline
+          </span>
+        </div>
+
+        <div className="loader-graph" aria-hidden="true">
+          <div className="loader-node active">
+            <Database size={18} />
+          </div>
+          <div className="loader-path">
+            <span />
+          </div>
+          <div className="loader-node active delay-1">
+            <Activity size={18} />
+          </div>
+          <div className="loader-path">
+            <span />
+          </div>
+          <div className="loader-node active delay-2">
+            <Zap size={18} />
+          </div>
+          <div className="loader-path">
+            <span />
+          </div>
+          <div className="loader-node active delay-3">
+            <Shield size={18} />
+          </div>
+        </div>
+
+        <div className="loader-progress">
+          <span />
+        </div>
+
+        <div className="loader-steps">
+          <span>Preprocessing</span>
+          <span>Feature engineering</span>
+          <span>LightGBM predict</span>
+          <span>Thresholding</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Summary Stats ─── */
 function SummaryStats({ result }) {
   if (!result) return null;
@@ -393,8 +532,6 @@ function ResultsTable({ records, selectedIdx, onSelect }) {
   const pageRecords = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const hasOutcome = records.some((r) => r.outcome);
 
-  useEffect(() => { setPage(0); }, [search, riskFilter]);
-
   return (
     <div className="card">
       <div className="card-header" style={{ marginBottom: 12 }}>
@@ -408,13 +545,19 @@ function ResultsTable({ records, selectedIdx, onSelect }) {
             <input
               placeholder="Search CONS_NO…"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(0);
+              }}
             />
           </div>
           <select
             className="filter-select"
             value={riskFilter}
-            onChange={(e) => setRiskFilter(e.target.value)}
+            onChange={(e) => {
+              setRiskFilter(e.target.value);
+              setPage(0);
+            }}
           >
             <option>All</option>
             <option>Low</option>
@@ -652,8 +795,13 @@ export default function HomePage() {
       {/* Header */}
       <header className="app-header">
         <div className="app-title">
-          <Zap size={28} color="var(--accent-cyan)" />
-          <h1>Energy Theft Detection</h1>
+          <div className="brand-mark">
+            <Zap size={22} />
+          </div>
+          <div>
+            <h1>Energy Theft Detection</h1>
+            <p>LightGBM screening dashboard</p>
+          </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           {healthy === true && (
@@ -671,25 +819,19 @@ export default function HomePage() {
       </header>
 
       {/* Model card + Upload side by side */}
-      <div className="grid-2 mb-32">
+      <div className="grid-2 top-grid mb-32">
         <ModelCard info={modelInfo} />
         <UploadPanel onResult={setResult} loading={loading} setLoading={setLoading} />
       </div>
 
+      {!result && !loading && <EmptyDashboardPreview modelInfo={modelInfo} />}
+
       {/* Loading */}
-      {loading && (
-        <div className="loading-overlay">
-          <div className="spinner" style={{ width: 36, height: 36 }} />
-          <p>Running inference pipeline…</p>
-          <p style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
-            Preprocessing → Feature Engineering → LightGBM Predict
-          </p>
-        </div>
-      )}
+      {loading && <InferenceLoading />}
 
       {/* Results */}
       {result && !loading && (
-        <>
+        <div className="results-stack">
           <SummaryStats result={result} />
           <ScoreDistribution records={result.records} threshold={result.threshold} />
           <ResultsTable
@@ -701,7 +843,7 @@ export default function HomePage() {
             record={selectedRecord}
             onClose={() => setSelectedIdx(null)}
           />
-        </>
+        </div>
       )}
     </div>
   );
