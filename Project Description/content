@@ -166,34 +166,74 @@ Chốt ý: test set không tham gia chọn threshold hay điều chỉnh model. 
 
 ---
 
-## Slide 7. Ba model dùng để so sánh - 1.5 phút
+## Slide 7. Logistic Regression baseline - 0.5 phút
 
 **Thông điệp chính**
 
-- Logistic Regression + L2 + balanced:
-  - Baseline tuyến tính, dễ giải thích.
-  - `L2` giúp ổn định hệ số khi nhiều feature tương quan.
-  - `balanced` giúp model chú ý hơn tới lớp theft.
-- Random Forest:
-  - Nhóm bagging.
-  - Dùng nhiều cây quyết định độc lập để giảm variance.
-  - Config giữ theo notebook tham khảo, chỉ dùng cùng feature set hiện tại.
-- LightGBM:
-  - Nhóm boosting.
-  - Học tuần tự các cây để sửa lỗi của cây trước.
-  - Phù hợp dữ liệu tabular và quan hệ phi tuyến.
+- Vai trò: baseline tuyến tính, dễ giải thích bằng hệ số `coef`.
+- Pipeline: `StandardScaler` -> `LogisticRegression`.
+- Config chính:
+  - `penalty="l2"`, `C=1.0`, `solver="lbfgs"`, `max_iter=3000`.
+  - `class_weight="balanced"` để xử lý lệch lớp.
+- `balanced` tự tăng trọng số cho lớp thiểu số `Theft`. Ví dụ Theft chỉ khoảng `8.5%`, nên lỗi trên Theft được phạt nặng hơn để model không chỉ thiên về Normal.
+- Output là `predict_proba(X)[:, 1]`, sau đó threshold được chọn trên validation.
 
 **Hình/visual nên dùng**
 
-- Bảng 3 model: vai trò, nhóm thuật toán, lý do dùng.
+- Một card ngắn: Linear baseline -> StandardScaler -> LR + L2 + balanced.
 
 **Ghi chú thuyết trình**
 
-Nói rõ LR không còn là model chính, nhưng vẫn giữ vì nó là baseline giải thích tốt. Model chính được chọn theo kết quả đánh giá cuối, hiện tại là LightGBM.
+Nói rõ LR không phải model chính, nhưng giữ lại vì nó là mốc so sánh đơn giản và giải thích tốt qua hệ số dương/âm.
 
 ---
 
-## Slide 8. Threshold tuning: vì sao không chỉ dùng 0.5 - 1.5 phút
+## Slide 8. Random Forest benchmark - 0.5 phút
+
+**Thông điệp chính**
+
+- Vai trò: benchmark nhóm bagging, bắt quan hệ phi tuyến tốt hơn baseline tuyến tính.
+- Dùng nhiều cây quyết định độc lập rồi tổng hợp kết quả để giảm variance.
+- Config chính:
+  - `n_estimators=300`, `max_features="sqrt"`, `min_samples_leaf=10`.
+  - `class_weight="balanced_subsample"`.
+- `balanced_subsample` tính trọng số class riêng cho từng bootstrap sample của mỗi cây. Theft ít hơn Normal nên được tăng trọng số trong quá trình học.
+- Output cũng là `predict_proba(X)[:, 1]`, threshold riêng được chọn trên validation.
+
+**Hình/visual nên dùng**
+
+- Một card ngắn: Bagging -> nhiều cây độc lập -> vote/probability.
+
+**Ghi chú thuyết trình**
+
+Nhấn mạnh Random Forest là mô hình cây mạnh hơn LR ở quan hệ phi tuyến, nhưng vẫn là benchmark để so với LightGBM.
+
+---
+
+## Slide 9. LightGBM benchmark - 0.5 phút
+
+**Thông điệp chính**
+
+- Vai trò: model chính hiện tại vì có kết quả test tốt nhất.
+- Nhóm boosting: học tuần tự nhiều cây, cây sau tập trung sửa lỗi còn lại của cây trước.
+- Config chính:
+  - `n_estimators=450`, `learning_rate=0.035`, `num_leaves=31`.
+  - `min_child_samples=80`, `subsample=0.85`, `colsample_bytree=0.85`, `reg_lambda=5`.
+  - `scale_pos_weight = Normal / Theft = class 0 / class 1 ≈ 10.72`.
+- `scale_pos_weight` làm lỗi trên lớp dương `Theft` nặng hơn, tương tự ý tưởng balanced nhưng dành cho LightGBM.
+- Output là Theft probability/score, threshold `best_f2` được chọn trên validation rồi áp dụng lên test.
+
+**Hình/visual nên dùng**
+
+- Một card ngắn: Boosting -> cây học tuần tự -> `scale_pos_weight`.
+
+**Ghi chú thuyết trình**
+
+Chốt rằng cả 3 model đều xử lý mất cân bằng lớp, nhưng LightGBM là model cuối vì hiệu năng tốt nhất trên F2, PR-AUC và ROC-AUC.
+
+---
+
+## Slide 10. Threshold tuning: vì sao không chỉ dùng 0.5 - 1.5 phút
 
 **Thông điệp chính**
 
@@ -217,7 +257,7 @@ Giải thích F2 ưu tiên Recall hơn Precision. Trong bối cảnh phát hiệ
 
 ---
 
-## Slide 9. Kết quả test cuối cùng - 2.0 phút
+## Slide 11. Kết quả test cuối cùng - 2.0 phút
 
 **Thông điệp chính**
 
@@ -244,7 +284,7 @@ Giải thích F2 ưu tiên Recall hơn Precision. Trong bối cảnh phát hiệ
 
 ---
 
-## Slide 10. Confusion matrix và ý nghĩa lỗi - 1.5 phút
+## Slide 12. Confusion matrix và ý nghĩa lỗi - 1.5 phút
 
 **Thông điệp chính**
 
@@ -272,30 +312,47 @@ Nói rõ vai trò của model là screening/ranking. Trong thực tế, kết qu
 
 ---
 
-## Slide 11. Feature importance và khả năng giải thích - 1.5 phút
+## Slide 13. Feature importance và khả năng giải thích - 1.5 phút
 
 **Thông điệp chính**
 
-- Logistic Regression cho biết hướng ảnh hưởng qua hệ số.
-- LightGBM cho biết feature nào được dùng nhiều trong split.
-- Các feature quan trọng chủ yếu liên quan đến:
-  - Rolling consumption.
-  - Volatility.
-  - Segment/time trend.
-  - Missing/zero/outlier behavior.
-- Điều này khớp với trực giác EDA: hành vi theft không chỉ nằm ở mức tiêu thụ trung bình mà còn ở biến động và thay đổi theo thời gian.
+Phần này dùng 2 plot trong `notebooks/model_training.ipynb`, Section 11, và cần nói đúng thuật ngữ:
+
+**1. Logistic Regression: hệ số chuẩn hóa**
+
+- Plot: `Top Logistic Regression Coefficients`.
+- Màu đỏ: `coef > 0`, feature tăng làm model nghiêng về `Theft`.
+- Màu xanh: `coef < 0`, feature tăng làm model nghiêng về `Normal`.
+- Độ xa khỏi `0`, tức `|coef|`, cho biết mức tác động mạnh/yếu.
+- Vì Logistic Regression dùng `StandardScaler`, các hệ số có thể so sánh tương đối giữa feature.
+
+**2. LightGBM: feature importance**
+
+- Plot: `Top Feature Importance - LightGBM benchmark`.
+- Màu xanh lá: split importance; giá trị lớn nghĩa là feature được LightGBM dùng nhiều hơn trong các split.
+- Importance không nói trực tiếp feature tăng thì nghiêng về `Theft` hay `Normal`; nó chỉ cho biết feature nào model cây dựa vào nhiều.
+- Dùng LightGBM để giải thích model chính vì đây là model hiệu năng tốt nhất hiện tại.
+
+**Nhóm feature cần nhấn mạnh**
+
+- Rolling/volatility: `roll30_std_avg`, `roll7_std_avg`, `std_daily_change`; liên hệ EDA về biến động tiêu thụ.
+- Temporal/segment/month: `recent_180_mean`, `segment4_minus_segment1`, `month_*`; liên hệ EDA về thay đổi theo thời gian.
+- Data quality/raw behavior: `max_missing_streak_raw`, `zero_count_clean`, `outlier_x_max_change`; liên hệ EDA về missing, zero, outlier.
+- Consumption level/log scale: `max_log1p_consumption`, `log1p_max_consumption_raw`, `median_consumption`; liên hệ EDA về phân phối lệch phải và outlier.
 
 **Hình/visual nên dùng**
 
-- `figures/feature_importance.png`.
+- Plot Logistic Regression coefficients trong Section 11 của `notebooks/model_training.ipynb`.
+- Plot LightGBM feature importance trong cùng section.
+- Nếu dùng file cũ `figures/feature_importance.png`, ghi rõ đó là LR coefficients, không phải LightGBM importance.
 
 **Ghi chú thuyết trình**
 
-Không cần đọc từng feature. Nên gom theo nhóm feature và liên hệ lại với insight EDA ban đầu.
+Không đọc từng dòng feature trên biểu đồ. Cách nói nên là: nhóm rolling/volatility cho thấy hành vi tiêu thụ biến động mạnh; nhóm temporal/segment/month cho thấy pattern thay đổi theo thời gian; nhóm missing/zero/outlier cho thấy chất lượng dữ liệu thô cũng mang tín hiệu; nhóm consumption level/log scale xử lý việc phân phối tiêu thụ bị lệch phải. Chốt lại insight EDA: theft không chỉ khác ở mức tiêu thụ trung bình, mà còn khác ở độ biến động, xu hướng theo thời gian và các dấu hiệu missing/zero/outlier.
 
 ---
 
-## Slide 12. Generalization, giới hạn và rủi ro - 1.0 phút
+## Slide 14. Generalization, giới hạn và rủi ro - 1.0 phút
 
 **Thông điệp chính**
 
@@ -316,7 +373,7 @@ Thể hiện hiểu trade-off: tăng Recall thường làm tăng false positive.
 
 ---
 
-## Slide 13. Đề xuất web demo - 1.0 phút
+## Slide 15. Đề xuất web demo - 1.0 phút
 
 **Thông điệp chính**
 
@@ -345,7 +402,7 @@ Demo nên thể hiện model hoạt động như công cụ hỗ trợ ra quyế
 
 ---
 
-## Slide 14. Kết luận - 1.0 phút
+## Slide 16. Kết luận - 1.0 phút
 
 **Thông điệp chính**
 
